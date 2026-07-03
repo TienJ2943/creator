@@ -152,14 +152,14 @@ function App() {
             </div>
             <div className="hero-side-stack">
               <div className="hero-frame hero-frame-side top">
-                <div className="mini-meta">
-                  <span>Travel reel</span>
+                <div className="frame-overlay">
+                  <span className="frame-tag">Travel reel</span>
                   <strong>Wide cinematic motion</strong>
                 </div>
               </div>
               <div className="hero-frame hero-frame-side bottom">
-                <div className="mini-meta">
-                  <span>Editorial cut</span>
+                <div className="frame-overlay">
+                  <span className="frame-tag">Editorial cut</span>
                   <strong>Night city neon</strong>
                 </div>
               </div>

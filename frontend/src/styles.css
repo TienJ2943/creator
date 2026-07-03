@@ -116,7 +116,7 @@ select {
 .workflow-copy h2,
 .generator-card h2,
 .result-card h2 {
-  margin: 0;
+  margin: 0 0 24px;
   line-height: 1.02;
   letter-spacing: -0.03em;
 }
