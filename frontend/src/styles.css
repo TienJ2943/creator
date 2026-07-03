@@ -142,6 +142,8 @@ select {
 .discover-overlay p {
   font-size: 1rem;
   color: rgba(247, 239, 228, 0.8);
+  
+  
 }
 
 .hero-text {
@@ -191,7 +193,7 @@ select {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
-  max-width: 620px;
+  max-width: 650px;
 }
 
 .stat-card,
@@ -345,18 +347,26 @@ select {
   display: grid;
   grid-template-columns: 60px 1fr;
   gap: 16px;
-  align-items: start;
+  align-items: center;
   padding: 18px 20px;
   border-radius: 22px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(247, 239, 228, 0.06);
+  letter-spacing: 0.04em;
 }
 
 .workflow-step span {
   font-size: 0.86rem;
   letter-spacing: 0.18em;
   color: #f6c27d;
-  padding-top: 6px;
+  padding-top: 0;
+  line-height: 1;
+  width: 48px;
+  display: grid;
+  place-items: center;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
 }
 
 .generator-section {

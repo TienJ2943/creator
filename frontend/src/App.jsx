@@ -204,7 +204,7 @@ function App() {
           </div>
           <div className="workflow-list">
             {workflowStages.map((stage, index) => (
-              <div className="workflow-step" key={stage}>
+              <div className="workflow-step"  key={stage}>
                 <span>{String(index + 1).padStart(2, '0')}</span>
                 <p>{stage}</p>
               </div>
