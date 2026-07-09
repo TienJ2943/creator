@@ -390,6 +390,10 @@ select {
   gap: 10px;
   color: rgba(247, 239, 228, 0.88);
 }
+.generator-card select option {
+  color: #1a1a1a;
+  background: #ffffff;
+}
 
 input,
 textarea,

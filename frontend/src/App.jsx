@@ -225,7 +225,7 @@ function App() {
                 Prompt
                 <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows="4" />
               </label>
-              <label>
+              <label  >
                 Style preset
                 <select value={style} onChange={(e) => setStyle(e.target.value)}>
                   {styleOptions.map((option) => <option key={option}>{option}</option>)}
