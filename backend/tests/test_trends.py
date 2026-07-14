@@ -244,3 +244,17 @@ def test_search_instagram_hashtag_returns_empty_when_hashtag_not_found(monkeypat
     with requests_mock.Mocker() as mock:
         mock.get("https://graph.facebook.com/v19.0/ig_hashtag_search", json={"data": []})
         assert search_instagram_hashtag("nope") == []
+
+
+from app.trends import search_threads_keyword
+
+
+def test_search_threads_keyword_returns_limited_list(monkeypatch):
+    monkeypatch.setattr("app.trends.THREADS_ACCESS_TOKEN", "test-token")
+    with requests_mock.Mocker() as mock:
+        mock.get(
+            "https://graph.threads.net/v1.0/keyword_search",
+            json={"data": [{"id": "1"}, {"id": "2"}, {"id": "3"}]},
+        )
+        results = search_threads_keyword("sustainable fashion", limit=2)
+    assert results == [{"id": "1"}, {"id": "2"}]

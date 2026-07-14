@@ -389,3 +389,21 @@ def search_instagram_hashtag(hashtag: str, media_type: str = "top_media", limit:
         return []
 
     return ig_get_hashtag_media(hashtag_id, media_type=media_type, limit=limit)
+
+
+THREADS_ACCESS_TOKEN = os.getenv("THREADS_ACCESS_TOKEN")
+THREADS_API_BASE = "https://graph.threads.net/v1.0"
+
+
+def search_threads_keyword(keyword: str, limit: int = 25) -> list[dict]:
+    url = f"{THREADS_API_BASE}/keyword_search"
+    params = {
+        "q": keyword,
+        "fields": "id,text,permalink,timestamp",
+        "access_token": THREADS_ACCESS_TOKEN,
+    }
+
+    response = requests.get(url, params=params, timeout=20)
+    response.raise_for_status()
+
+    return response.json().get("data", [])[:limit]
