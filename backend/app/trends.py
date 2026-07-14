@@ -128,6 +128,11 @@ def make_buffer_csv(rows: list[dict], gap_minutes: int = 90) -> bytes:
 
     buffer_df = pd.DataFrame({
         "Text": [row["buffer_text"] for row in rows],
+        # image_url is always empty by design: no per-platform media-URL
+        # extraction is implemented, so this column ships blank for every row.
+        # Buffer's CSV format still expects an "Image URL" column to exist
+        # (media can be attached separately in Buffer), so we keep it rather
+        # than drop it.
         "Image URL": [row.get("image_url", "") for row in rows],
         "Tags": [",".join(row.get("tags", [])) for row in rows],
         "Posting Time": posting_times,
