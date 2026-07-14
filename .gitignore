@@ -19,3 +19,9 @@ frontend/.env
 
 # OS
 .DS_Store
+
+# Backend runtime artifacts (uploaded/generated video files)
+backend/uploads/*
+backend/outputs/*
+!backend/uploads/.gitkeep
+!backend/outputs/.gitkeep
