@@ -175,6 +175,43 @@ function App() {
     }
   };
 
+  const handleUseForVideo = async (row) => {
+    try {
+      const response = await fetch(apiUrl('/api/trends/video-prompt'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          trend: row.trend,
+          keywords: row.keywords,
+          original_text: row.original_text,
+        }),
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      setPrompt(data.prompt);
+      document.getElementById('generator')?.scrollIntoView({ behavior: 'smooth' });
+    } catch {
+      // no-op: leave the existing prompt untouched on failure
+    }
+  };
+
+  const handleExportTrends = async (format) => {
+    const response = await fetch(apiUrl('/api/trends/export'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rows: trendRows, format, gap_minutes: 90 }),
+    });
+    if (!response.ok) return;
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = format === 'buffer' ? 'buffer_bulk_upload.csv' : 'posts_full_export.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleAddToQueue = (event) => {
     event.preventDefault();
     const posts = pasteBlock.includes('---')
@@ -383,30 +420,44 @@ function App() {
           )}
 
           {trendRows.length > 0 && (
-            <table className="trends-table">
-              <thead>
-                <tr>
-                  <th>Platform</th>
-                  <th>Trend</th>
-                  <th>Keywords</th>
-                  <th>Engagement</th>
-                  <th>Original text</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {trendRows.map((row) => (
-                  <tr key={`${row.platform}-${row.post_id}-${row.trend}`}>
-                    <td>{row.platform}</td>
-                    <td>{row.trend}</td>
-                    <td>{row.keywords.join(', ')}</td>
-                    <td>{row.engagement_score}</td>
-                    <td>{row.original_text}</td>
-                    <td></td>
+            <>
+              <table className="trends-table">
+                <thead>
+                  <tr>
+                    <th>Platform</th>
+                    <th>Trend</th>
+                    <th>Keywords</th>
+                    <th>Engagement</th>
+                    <th>Original text</th>
+                    <th></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {trendRows.map((row) => (
+                    <tr key={`${row.platform}-${row.post_id}-${row.trend}`}>
+                      <td>{row.platform}</td>
+                      <td>{row.trend}</td>
+                      <td>{row.keywords.join(', ')}</td>
+                      <td>{row.engagement_score}</td>
+                      <td>{row.original_text}</td>
+                      <td>
+                        <button className="ghost-btn" type="button" onClick={() => handleUseForVideo(row)}>
+                          Use for video
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="trends-export-actions">
+                <button className="ghost-btn" type="button" onClick={() => handleExportTrends('buffer')}>
+                  Download Buffer CSV
+                </button>
+                <button className="ghost-btn" type="button" onClick={() => handleExportTrends('full')}>
+                  Download full CSV
+                </button>
+              </div>
+            </>
           )}
         </section>
 
