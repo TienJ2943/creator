@@ -47,6 +47,13 @@ function App() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [library, setLibrary] = useState([]);
+  const [trendSource, setTrendSource] = useState('x-search');
+  const [xQuery, setXQuery] = useState('#AI');
+  const [baseLinkInput, setBaseLinkInput] = useState('https://yourdomain.com/blog');
+  const [campaignNameInput, setCampaignNameInput] = useState('trend_roundup');
+  const [trendRows, setTrendRows] = useState([]);
+  const [trendLoading, setTrendLoading] = useState(false);
+  const [trendError, setTrendError] = useState('');
 
   useEffect(() => {
     fetch(apiUrl('/api/videos'))
@@ -101,6 +108,33 @@ function App() {
     }
   };
 
+  const handleFetchTrends = async (event) => {
+    event.preventDefault();
+    setTrendLoading(true);
+    setTrendError('');
+
+    try {
+      const params = new URLSearchParams({
+        query: xQuery,
+        base_link: baseLinkInput,
+        campaign_name: campaignNameInput,
+      });
+      const response = await fetch(apiUrl(`/api/trends/x/search?${params.toString()}`));
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.detail || 'Could not fetch trends.');
+      }
+
+      const data = await response.json();
+      setTrendRows(data);
+    } catch (err) {
+      setTrendError(err.message || 'Something went wrong.');
+    } finally {
+      setTrendLoading(false);
+    }
+  };
+
   return (
     <div className="page-shell">
       <header className="hero">
@@ -115,6 +149,7 @@ function App() {
           <div className="nav-links">
             <a href={`${PUBLIC_BASE}#discover`}>Discover</a>
             <a href={`${PUBLIC_BASE}#workflow`}>Workflow</a>
+            <a href={`${PUBLIC_BASE}#trends`}>Trends</a>
             <a href={`${PUBLIC_BASE}#generator`}>Generator</a>
             <a href={`${PUBLIC_BASE}#library`}>Library</a>
           </div>
@@ -210,6 +245,71 @@ function App() {
               </div>
             ))}
           </div>
+        </section>
+
+        <section className="trends-section" id="trends">
+          <div className="section-heading split">
+            <div>
+              <p className="eyebrow">Trends</p>
+              <h2>Pull a prompt from what's trending right now.</h2>
+            </div>
+            <p className="section-text">
+              Fetch trending posts, then send one straight into the Generator as a
+              video prompt.
+            </p>
+          </div>
+
+          <form className="trends-form" onSubmit={handleFetchTrends}>
+            <label>
+              Source
+              <select value={trendSource} onChange={(e) => setTrendSource(e.target.value)}>
+                <option value="x-search">X search</option>
+              </select>
+            </label>
+            <label>
+              Search query / hashtag
+              <input type="text" value={xQuery} onChange={(e) => setXQuery(e.target.value)} />
+            </label>
+            <label>
+              Base link
+              <input type="text" value={baseLinkInput} onChange={(e) => setBaseLinkInput(e.target.value)} />
+            </label>
+            <label>
+              Campaign name
+              <input type="text" value={campaignNameInput} onChange={(e) => setCampaignNameInput(e.target.value)} />
+            </label>
+            <button className="primary-btn" type="submit" disabled={trendLoading}>
+              {trendLoading ? 'Fetching...' : 'Fetch trends'}
+            </button>
+            {trendError && <p className="error-text">{trendError}</p>}
+          </form>
+
+          {trendRows.length > 0 && (
+            <table className="trends-table">
+              <thead>
+                <tr>
+                  <th>Platform</th>
+                  <th>Trend</th>
+                  <th>Keywords</th>
+                  <th>Engagement</th>
+                  <th>Original text</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {trendRows.map((row) => (
+                  <tr key={`${row.platform}-${row.post_id}-${row.trend}`}>
+                    <td>{row.platform}</td>
+                    <td>{row.trend}</td>
+                    <td>{row.keywords.join(', ')}</td>
+                    <td>{row.engagement_score}</td>
+                    <td>{row.original_text}</td>
+                    <td></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </section>
 
         <section className="generator-section" id="generator">
