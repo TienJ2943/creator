@@ -86,3 +86,14 @@ def test_manual_paste_returns_empty_list_for_no_entries():
     })
     assert response.status_code == 200
     assert response.json() == []
+
+
+def test_video_prompt_returns_generated_prompt():
+    with patch("app.main.trends.rewrite_video_prompt_with_claude", return_value="Cinematic shot of sneakers."):
+        response = client.post("/api/trends/video-prompt", json={
+            "trend": "#SneakerDrop",
+            "keywords": ["sneakers", "limited edition"],
+            "original_text": "New sneaker drop is everywhere",
+        })
+    assert response.status_code == 200
+    assert response.json() == {"prompt": "Cinematic shot of sneakers."}

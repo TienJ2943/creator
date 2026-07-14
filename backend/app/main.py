@@ -84,6 +84,16 @@ class ManualPasteRequest(BaseModel):
     entries: List[ManualEntry]
 
 
+class VideoPromptRequest(BaseModel):
+    trend: str
+    keywords: List[str]
+    original_text: str = ""
+
+
+class VideoPromptResponse(BaseModel):
+    prompt: str
+
+
 SAMPLE_VIDEOS = [
     VideoAsset(
         id="launch-film",
@@ -209,6 +219,16 @@ def submit_manual_posts(payload: ManualPasteRequest) -> List[TrendRow]:
         campaign_name=payload.campaign_name,
         use_ai_rewrite=payload.use_ai_rewrite,
     )
+
+
+@app.post("/api/trends/video-prompt", response_model=VideoPromptResponse)
+def generate_video_prompt(payload: VideoPromptRequest) -> VideoPromptResponse:
+    prompt = trends.rewrite_video_prompt_with_claude(
+        original_text=payload.original_text,
+        trend=payload.trend,
+        keywords=payload.keywords,
+    )
+    return VideoPromptResponse(prompt=prompt)
 
 
 @app.post("/api/variations", response_model=VariationResponse)
