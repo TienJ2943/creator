@@ -201,3 +201,46 @@ def test_search_recent_posts_returns_data_list(monkeypatch):
         )
         posts = search_recent_posts("#AI", max_results=10)
     assert posts == [{"id": "1", "text": "hello"}]
+
+
+from app.trends import ig_find_hashtag_id, ig_get_hashtag_media, search_instagram_hashtag
+
+
+def test_ig_find_hashtag_id_returns_first_match(monkeypatch):
+    monkeypatch.setattr("app.trends.IG_ACCESS_TOKEN", "test-token")
+    monkeypatch.setattr("app.trends.IG_BUSINESS_ACCOUNT_ID", "12345")
+    with requests_mock.Mocker() as mock:
+        mock.get(
+            "https://graph.facebook.com/v19.0/ig_hashtag_search",
+            json={"data": [{"id": "999"}]},
+        )
+        hashtag_id = ig_find_hashtag_id("#sustainablefashion")
+    assert hashtag_id == "999"
+
+
+def test_ig_find_hashtag_id_returns_none_when_no_match(monkeypatch):
+    monkeypatch.setattr("app.trends.IG_ACCESS_TOKEN", "test-token")
+    monkeypatch.setattr("app.trends.IG_BUSINESS_ACCOUNT_ID", "12345")
+    with requests_mock.Mocker() as mock:
+        mock.get("https://graph.facebook.com/v19.0/ig_hashtag_search", json={"data": []})
+        assert ig_find_hashtag_id("nonexistent") is None
+
+
+def test_ig_get_hashtag_media_returns_limited_list(monkeypatch):
+    monkeypatch.setattr("app.trends.IG_ACCESS_TOKEN", "test-token")
+    monkeypatch.setattr("app.trends.IG_BUSINESS_ACCOUNT_ID", "12345")
+    with requests_mock.Mocker() as mock:
+        mock.get(
+            "https://graph.facebook.com/v19.0/999/top_media",
+            json={"data": [{"id": "1"}, {"id": "2"}]},
+        )
+        media = ig_get_hashtag_media("999", limit=1)
+    assert media == [{"id": "1"}]
+
+
+def test_search_instagram_hashtag_returns_empty_when_hashtag_not_found(monkeypatch):
+    monkeypatch.setattr("app.trends.IG_ACCESS_TOKEN", "test-token")
+    monkeypatch.setattr("app.trends.IG_BUSINESS_ACCOUNT_ID", "12345")
+    with requests_mock.Mocker() as mock:
+        mock.get("https://graph.facebook.com/v19.0/ig_hashtag_search", json={"data": []})
+        assert search_instagram_hashtag("nope") == []

@@ -342,3 +342,50 @@ def engagement_score(post: dict) -> int:
 
 def post_url(post_id: str) -> str:
     return f"https://x.com/i/web/status/{post_id}"
+
+
+IG_ACCESS_TOKEN = os.getenv("IG_ACCESS_TOKEN")
+IG_BUSINESS_ACCOUNT_ID = os.getenv("IG_BUSINESS_ACCOUNT_ID")
+GRAPH_API_BASE = "https://graph.facebook.com/v19.0"
+
+
+def ig_find_hashtag_id(hashtag_name: str) -> str | None:
+    hashtag_name = hashtag_name.lstrip("#")
+
+    url = f"{GRAPH_API_BASE}/ig_hashtag_search"
+    params = {
+        "user_id": IG_BUSINESS_ACCOUNT_ID,
+        "q": hashtag_name,
+        "access_token": IG_ACCESS_TOKEN,
+    }
+
+    response = requests.get(url, params=params, timeout=20)
+    response.raise_for_status()
+
+    data = response.json().get("data", [])
+    if not data:
+        return None
+
+    return data[0].get("id")
+
+
+def ig_get_hashtag_media(hashtag_id: str, media_type: str = "top_media", limit: int = 25) -> list[dict]:
+    url = f"{GRAPH_API_BASE}/{hashtag_id}/{media_type}"
+    params = {
+        "user_id": IG_BUSINESS_ACCOUNT_ID,
+        "fields": "id,caption,like_count,comments_count,permalink,timestamp",
+        "access_token": IG_ACCESS_TOKEN,
+    }
+
+    response = requests.get(url, params=params, timeout=20)
+    response.raise_for_status()
+
+    return response.json().get("data", [])[:limit]
+
+
+def search_instagram_hashtag(hashtag: str, media_type: str = "top_media", limit: int = 25) -> list[dict]:
+    hashtag_id = ig_find_hashtag_id(hashtag)
+    if not hashtag_id:
+        return []
+
+    return ig_get_hashtag_media(hashtag_id, media_type=media_type, limit=limit)
