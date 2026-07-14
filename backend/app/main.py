@@ -10,6 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from app import trends
+
 BASE_DIR = Path(__file__).resolve().parents[1]
 UPLOADS_DIR = BASE_DIR / "uploads"
 OUTPUTS_DIR = BASE_DIR / "outputs"
@@ -49,6 +51,26 @@ class VariationResponse(BaseModel):
     notes: List[str]
 
 
+class TrendRow(BaseModel):
+    platform: str
+    trend: str
+    post_id: str
+    post_url: str
+    original_text: str
+    keywords: List[str]
+    hashtags: List[str]
+    likes: int
+    comments: int
+    retweets: int
+    quotes: int
+    engagement_score: int
+    created_at: str
+    tracked_link: str
+    rewritten_caption: str
+    buffer_text: str
+    tags: List[str]
+
+
 SAMPLE_VIDEOS = [
     VideoAsset(
         id="launch-film",
@@ -85,6 +107,82 @@ def list_videos() -> List[VideoAsset]:
 @app.get("/api/health")
 def health_check() -> dict:
     return {"ok": True, "seedanceConfigured": bool(SEEDANCE_API_KEY)}
+
+
+@app.get("/api/trends/x", response_model=List[str])
+def get_x_trending(woeid: str = "23424748", limit: int = 10) -> List[str]:
+    if not trends.X_BEARER_TOKEN:
+        raise HTTPException(status_code=503, detail="Missing X_BEARER_TOKEN")
+
+    return trends.get_trending_topics(woeid=woeid, limit=limit)
+
+
+@app.get("/api/trends/x/search", response_model=List[TrendRow])
+def search_x_trends(
+    query: str,
+    base_link: str,
+    campaign_name: str,
+    max_results: int = 25,
+    output_posts: int = 3,
+    use_ai_rewrite: bool = True,
+) -> List[TrendRow]:
+    if not trends.X_BEARER_TOKEN:
+        raise HTTPException(status_code=503, detail="Missing X_BEARER_TOKEN")
+
+    return trends.build_x_rows(
+        trend=query,
+        base_link=base_link,
+        campaign_name=campaign_name,
+        posts_per_trend=max_results,
+        output_posts_per_trend=output_posts,
+        use_ai_rewrite=use_ai_rewrite,
+    )
+
+
+@app.get("/api/trends/instagram", response_model=List[TrendRow])
+def search_instagram_trends(
+    hashtag: str,
+    base_link: str,
+    campaign_name: str,
+    max_results: int = 25,
+    output_posts: int = 3,
+    use_ai_rewrite: bool = True,
+) -> List[TrendRow]:
+    if not trends.IG_ACCESS_TOKEN or not trends.IG_BUSINESS_ACCOUNT_ID:
+        raise HTTPException(status_code=503, detail="Missing IG_ACCESS_TOKEN or IG_BUSINESS_ACCOUNT_ID")
+
+    return trends.build_meta_rows(
+        platform="Instagram",
+        query=hashtag,
+        base_link=base_link,
+        campaign_name=campaign_name,
+        posts_per_query=max_results,
+        output_posts_per_query=output_posts,
+        use_ai_rewrite=use_ai_rewrite,
+    )
+
+
+@app.get("/api/trends/threads", response_model=List[TrendRow])
+def search_threads_trends(
+    keyword: str,
+    base_link: str,
+    campaign_name: str,
+    max_results: int = 25,
+    output_posts: int = 3,
+    use_ai_rewrite: bool = True,
+) -> List[TrendRow]:
+    if not trends.THREADS_ACCESS_TOKEN:
+        raise HTTPException(status_code=503, detail="Missing THREADS_ACCESS_TOKEN")
+
+    return trends.build_meta_rows(
+        platform="Threads",
+        query=keyword,
+        base_link=base_link,
+        campaign_name=campaign_name,
+        posts_per_query=max_results,
+        output_posts_per_query=output_posts,
+        use_ai_rewrite=use_ai_rewrite,
+    )
 
 
 @app.post("/api/variations", response_model=VariationResponse)
