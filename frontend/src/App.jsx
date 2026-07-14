@@ -38,6 +38,12 @@ const workflowStages = [
 ];
 
 const styleOptions = ['Cinematic', 'Editorial', 'High Contrast', 'Dreamscape'];
+const sourceOptions = [
+  { value: 'x-search', label: 'X search' },
+  { value: 'instagram', label: 'Instagram hashtag' },
+  { value: 'threads', label: 'Threads keyword' },
+  { value: 'manual', label: 'Paste manually' },
+];
 
 function App() {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -340,7 +346,7 @@ function App() {
         </section>
 
         <section className="trends-section" id="trends">
-          <div className="section-heading split">
+          <div className="section-heading ">
             <div>
               <p className="eyebrow">Trends</p>
               <h2>Pull a prompt from what's trending right now.</h2>
@@ -355,12 +361,11 @@ function App() {
             <label>
               Source
               <select value={trendSource} onChange={(e) => setTrendSource(e.target.value)}>
-                <option value="x-search">X search</option>
-                <option value="instagram">Instagram hashtag</option>
-                <option value="threads">Threads keyword</option>
-                <option value="manual">Paste manually</option>
+                {sourceOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
               </select>
-            </label>
+            </label> 
             {trendSource === 'x-search' && (
               <label>
                 Search query / hashtag

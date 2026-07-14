@@ -167,6 +167,7 @@ select {
   border: 1px solid transparent;
   cursor: pointer;
   transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+  color: white;
 }
 
 .primary-btn {
@@ -551,11 +552,25 @@ textarea {
   }
 }
 
+.trends-section {
+  margin: 36px clamp(20px, 4vw, 56px) 28px;
+  border-radius: 34px;
+  padding: 30px;
+  display: grid;
+  grid-template-columns: 0.95fr 1.05fr;
+  gap: 28px;
+}
+
+.trends-section select option {
+  color: #1a1a1a;
+  background: #ffffff;
+}
+
 .trends-form {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 1rem;
-  align-items: end;
+  align-items: start;
   margin-bottom: 2rem;
 }
 
