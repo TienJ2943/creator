@@ -22,6 +22,8 @@ OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
 
 SEEDANCE_API_URL = os.getenv("SEEDANCE_API_URL", "https://api.seedance.example/v1/video/variations")
 SEEDANCE_API_KEY = os.getenv("SEEDANCE_API_KEY", "")
+SEEDANCE_POLL_ATTEMPTS = 40
+SEEDANCE_POLL_INTERVAL_SECONDS = 3
 PUBLIC_BACKEND_URL = os.getenv("PUBLIC_BACKEND_URL", "http://localhost:8000")
 
 app = FastAPI(title="Video Studio API")
@@ -276,7 +278,7 @@ async def call_seedance(prompt: str, style: str, source_video_url: str) -> str |
         poll_url = f"{SEEDANCE_API_URL}/contents/generations/tasks/{task_id}"
         headers = {"Authorization": f"Bearer {SEEDANCE_API_KEY}"}
 
-        for _attempt in range(40):
+        for _attempt in range(SEEDANCE_POLL_ATTEMPTS):
             poll_response = await client.get(poll_url, headers=headers)
             poll_response.raise_for_status()
             payload = poll_response.json()
@@ -288,7 +290,7 @@ async def call_seedance(prompt: str, style: str, source_video_url: str) -> str |
                 error_message = payload.get("error", {}).get("message", "unknown error")
                 raise RuntimeError(f"Seedance task failed: {error_message}")
 
-            await asyncio.sleep(3)
+            await asyncio.sleep(SEEDANCE_POLL_INTERVAL_SECONDS)
 
         raise TimeoutError("Seedance task did not complete in time")
 
