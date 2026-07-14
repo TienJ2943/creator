@@ -1,4 +1,8 @@
 import re
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
+import pandas as pd
 
 
 def clean_text(text: str) -> str:
@@ -91,3 +95,69 @@ def extract_tfidf_keywords(texts: list[str], top_n: int = 8) -> list[str]:
             keywords.append(term)
 
     return keywords[:top_n]
+
+
+SYDNEY_TZ = ZoneInfo("Australia/Sydney")
+
+
+def build_tracked_link(
+    base_url: str,
+    campaign: str,
+    trend: str,
+    source: str = "twitter",
+    medium: str = "social",
+) -> str:
+    separator = "&" if "?" in base_url else "?"
+
+    return (
+        f"{base_url}"
+        f"{separator}utm_source={source}"
+        f"&utm_medium={medium}"
+        f"&utm_campaign={slugify(campaign)}"
+        f"&utm_content={slugify(trend)}"
+    )
+
+
+def make_buffer_csv(rows: list[dict], gap_minutes: int = 90) -> bytes:
+    now = datetime.now(SYDNEY_TZ)
+
+    posting_times = [
+        (now + timedelta(minutes=gap_minutes * (index + 1))).strftime("%Y-%m-%d %H:%M")
+        for index in range(len(rows))
+    ]
+
+    buffer_df = pd.DataFrame({
+        "Text": [row["buffer_text"] for row in rows],
+        "Image URL": [row.get("image_url", "") for row in rows],
+        "Tags": [",".join(row.get("tags", [])) for row in rows],
+        "Posting Time": posting_times,
+    })
+
+    return buffer_df.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
+
+
+def make_full_export_csv(rows: list[dict]) -> bytes:
+    full_df = pd.DataFrame([
+        {
+            "Platform": row["platform"],
+            "Trend": row["trend"],
+            "Post ID": row["post_id"],
+            "Post URL": row["post_url"],
+            "Original Text": row["original_text"],
+            "Keywords": ", ".join(row.get("keywords", [])),
+            "Hashtags": ", ".join(row.get("hashtags", [])),
+            "Likes": row.get("likes", 0),
+            "Comments": row.get("comments", 0),
+            "Retweets": row.get("retweets", 0),
+            "Quotes": row.get("quotes", 0),
+            "Engagement Score": row.get("engagement_score", 0),
+            "Created At": row.get("created_at", ""),
+            "Tracked Link": row.get("tracked_link", ""),
+            "Rewritten Caption": row.get("rewritten_caption", ""),
+            "Buffer Text": row.get("buffer_text", ""),
+            "Tags": ",".join(row.get("tags", [])),
+        }
+        for row in rows
+    ])
+
+    return full_df.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
