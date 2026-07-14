@@ -1,3 +1,4 @@
+import asyncio
 import os
 import shutil
 import uuid
@@ -256,6 +257,42 @@ def export_trend_rows(payload: ExportRequest) -> Response:
     )
 
 
+async def call_seedance(prompt: str, style: str, source_video_url: str) -> str | None:
+    async with httpx.AsyncClient(timeout=30) as client:
+        create_response = await client.post(
+            f"{SEEDANCE_API_URL}/contents/generations/tasks",
+            headers={"Authorization": f"Bearer {SEEDANCE_API_KEY}", "Content-Type": "application/json"},
+            json={
+                "model": "doubao-seedance-2-0-260128",
+                "content": [
+                    {"type": "text", "text": f"{prompt} (style: {style})"},
+                    {"type": "video_url", "video_url": {"url": source_video_url}},
+                ],
+            },
+        )
+        create_response.raise_for_status()
+        task_id = create_response.json()["id"]
+
+        poll_url = f"{SEEDANCE_API_URL}/contents/generations/tasks/{task_id}"
+        headers = {"Authorization": f"Bearer {SEEDANCE_API_KEY}"}
+
+        for _attempt in range(40):
+            poll_response = await client.get(poll_url, headers=headers)
+            poll_response.raise_for_status()
+            payload = poll_response.json()
+            status = payload.get("status")
+
+            if status == "succeeded":
+                return payload.get("content", {}).get("video_url")
+            if status == "failed":
+                error_message = payload.get("error", {}).get("message", "unknown error")
+                raise RuntimeError(f"Seedance task failed: {error_message}")
+
+            await asyncio.sleep(3)
+
+        raise TimeoutError("Seedance task did not complete in time")
+
+
 @app.post("/api/variations", response_model=VariationResponse)
 async def create_variation(
     video: UploadFile = File(...),
@@ -276,22 +313,15 @@ async def create_variation(
 
     if SEEDANCE_API_KEY:
         try:
-            async with httpx.AsyncClient(timeout=120) as client:
-                with input_path.open("rb") as source_file:
-                    files = {"video": (input_path.name, source_file, video.content_type or "video/mp4")}
-                    data = {"prompt": prompt, "style": style}
-                    headers = {"Authorization": f"Bearer {SEEDANCE_API_KEY}"}
-                    response = await client.post(SEEDANCE_API_URL, headers=headers, data=data, files=files)
-                    response.raise_for_status()
-                    payload = response.json()
-                    remote_url = payload.get("output_url") or payload.get("video_url")
-                    if remote_url:
-                        download = await client.get(remote_url)
-                        download.raise_for_status()
-                        output_path.write_bytes(download.content)
-                        notes.append("Generated with Seedance2.0 API")
-                    else:
-                        raise HTTPException(status_code=502, detail="Seedance API response missing output URL")
+            remote_url = await call_seedance(prompt=prompt, style=style or "Cinematic", source_video_url=original_url)
+            if remote_url:
+                async with httpx.AsyncClient(timeout=120) as client:
+                    download = await client.get(remote_url)
+                    download.raise_for_status()
+                    output_path.write_bytes(download.content)
+                    notes.append("Generated with Seedance2.0 API")
+            else:
+                raise HTTPException(status_code=502, detail="Seedance API response missing output URL")
         except Exception as exc:
             notes.append(f"Seedance call failed, fallback preview created: {exc}")
 
