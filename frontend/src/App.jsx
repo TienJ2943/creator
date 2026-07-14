@@ -54,6 +54,13 @@ function App() {
   const [trendRows, setTrendRows] = useState([]);
   const [trendLoading, setTrendLoading] = useState(false);
   const [trendError, setTrendError] = useState('');
+  const [igHashtag, setIgHashtag] = useState('sustainablefashion');
+  const [threadsKeyword, setThreadsKeyword] = useState('sustainable fashion');
+  const [pasteTrend, setPasteTrend] = useState('');
+  const [pastePlatform, setPastePlatform] = useState('X');
+  const [pasteBlock, setPasteBlock] = useState('');
+  const [manualQueue, setManualQueue] = useState([]);
+  const [igHashtagsQueried, setIgHashtagsQueried] = useState(new Set());
 
   useEffect(() => {
     fetch(apiUrl('/api/videos'))
@@ -114,25 +121,73 @@ function App() {
     setTrendError('');
 
     try {
-      const params = new URLSearchParams({
-        query: xQuery,
-        base_link: baseLinkInput,
-        campaign_name: campaignNameInput,
-      });
-      const response = await fetch(apiUrl(`/api/trends/x/search?${params.toString()}`));
+      if (trendSource === 'manual') {
+        if (manualQueue.length === 0) {
+          throw new Error('Add at least one pasted post before submitting.');
+        }
+        const response = await fetch(apiUrl('/api/trends/manual'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            base_link: baseLinkInput,
+            campaign_name: campaignNameInput,
+            use_ai_rewrite: true,
+            entries: manualQueue,
+          }),
+        });
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({}));
+          throw new Error(body.detail || 'Could not submit pasted posts.');
+        }
+        setTrendRows(await response.json());
+        return;
+      }
 
+      let path;
+      const params = new URLSearchParams({ base_link: baseLinkInput, campaign_name: campaignNameInput });
+
+      if (trendSource === 'x-search') {
+        params.set('query', xQuery);
+        path = `/api/trends/x/search?${params.toString()}`;
+      } else if (trendSource === 'instagram') {
+        params.set('hashtag', igHashtag);
+        path = `/api/trends/instagram?${params.toString()}`;
+      } else {
+        params.set('keyword', threadsKeyword);
+        path = `/api/trends/threads?${params.toString()}`;
+      }
+
+      const response = await fetch(apiUrl(path));
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
         throw new Error(body.detail || 'Could not fetch trends.');
       }
-
       const data = await response.json();
       setTrendRows(data);
+
+      if (trendSource === 'instagram') {
+        setIgHashtagsQueried((prev) => new Set([...prev, igHashtag.replace(/^#/, '')]));
+      }
     } catch (err) {
       setTrendError(err.message || 'Something went wrong.');
     } finally {
       setTrendLoading(false);
     }
+  };
+
+  const handleAddToQueue = (event) => {
+    event.preventDefault();
+    const posts = pasteBlock.includes('---')
+      ? pasteBlock.split('---').map((chunk) => chunk.trim()).filter(Boolean)
+      : pasteBlock.split('\n').map((line) => line.trim()).filter(Boolean);
+
+    if (!pasteTrend.trim() || posts.length === 0) return;
+
+    setManualQueue((prev) => [
+      ...prev,
+      ...posts.map((text) => ({ trend: pasteTrend.trim(), platform: pastePlatform, text })),
+    ]);
+    setPasteBlock('');
   };
 
   return (
@@ -264,12 +319,30 @@ function App() {
               Source
               <select value={trendSource} onChange={(e) => setTrendSource(e.target.value)}>
                 <option value="x-search">X search</option>
+                <option value="instagram">Instagram hashtag</option>
+                <option value="threads">Threads keyword</option>
+                <option value="manual">Paste manually</option>
               </select>
             </label>
-            <label>
-              Search query / hashtag
-              <input type="text" value={xQuery} onChange={(e) => setXQuery(e.target.value)} />
-            </label>
+            {trendSource === 'x-search' && (
+              <label>
+                Search query / hashtag
+                <input type="text" value={xQuery} onChange={(e) => setXQuery(e.target.value)} />
+              </label>
+            )}
+            {trendSource === 'instagram' && (
+              <label>
+                Instagram hashtag
+                <input type="text" value={igHashtag} onChange={(e) => setIgHashtag(e.target.value)} />
+                <span className="hint">{igHashtagsQueried.size} / 30 hashtags used this window</span>
+              </label>
+            )}
+            {trendSource === 'threads' && (
+              <label>
+                Threads keyword
+                <input type="text" value={threadsKeyword} onChange={(e) => setThreadsKeyword(e.target.value)} />
+              </label>
+            )}
             <label>
               Base link
               <input type="text" value={baseLinkInput} onChange={(e) => setBaseLinkInput(e.target.value)} />
@@ -283,6 +356,31 @@ function App() {
             </button>
             {trendError && <p className="error-text">{trendError}</p>}
           </form>
+
+          {trendSource === 'manual' && (
+            <div className="manual-paste-panel">
+              <label>
+                Topic / trend label
+                <input type="text" value={pasteTrend} onChange={(e) => setPasteTrend(e.target.value)} />
+              </label>
+              <label>
+                Platform
+                <select value={pastePlatform} onChange={(e) => setPastePlatform(e.target.value)}>
+                  <option>X</option>
+                  <option>Instagram</option>
+                  <option>Threads</option>
+                  <option>Facebook</option>
+                  <option>Other</option>
+                </select>
+              </label>
+              <label>
+                Paste post captions (one per line, or separate multi-line posts with a line containing only ---)
+                <textarea value={pasteBlock} onChange={(e) => setPasteBlock(e.target.value)} rows="4" />
+              </label>
+              <button className="ghost-btn" type="button" onClick={handleAddToQueue}>Add to queue</button>
+              <p className="hint">{manualQueue.length} post(s) queued</p>
+            </div>
+          )}
 
           {trendRows.length > 0 && (
             <table className="trends-table">
