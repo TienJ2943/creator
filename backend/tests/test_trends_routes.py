@@ -97,3 +97,37 @@ def test_video_prompt_returns_generated_prompt():
         })
     assert response.status_code == 200
     assert response.json() == {"prompt": "Cinematic shot of sneakers."}
+
+
+SAMPLE_EXPORT_ROW = {
+    "platform": "X", "trend": "#AI", "post_id": "1", "post_url": "https://x.com/i/web/status/1",
+    "original_text": "AI is everywhere", "keywords": ["ai"], "hashtags": ["#AI"],
+    "likes": 1, "comments": 0, "retweets": 0, "quotes": 0, "engagement_score": 1,
+    "created_at": "", "tracked_link": "https://x.example?utm_source=twitter",
+    "rewritten_caption": "AI is having a moment.", "buffer_text": "AI is having a moment. https://x.example",
+    "tags": ["ai"],
+}
+
+
+def test_export_buffer_returns_csv():
+    response = client.post("/api/trends/export", json={
+        "rows": [SAMPLE_EXPORT_ROW], "format": "buffer", "gap_minutes": 90,
+    })
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/csv")
+    assert "Text,Image URL,Tags,Posting Time" in response.text
+
+
+def test_export_full_returns_csv():
+    response = client.post("/api/trends/export", json={
+        "rows": [SAMPLE_EXPORT_ROW], "format": "full", "gap_minutes": 90,
+    })
+    assert response.status_code == 200
+    assert "Platform" in response.text
+
+
+def test_export_rejects_unknown_format():
+    response = client.post("/api/trends/export", json={
+        "rows": [SAMPLE_EXPORT_ROW], "format": "xml", "gap_minutes": 90,
+    })
+    assert response.status_code == 422

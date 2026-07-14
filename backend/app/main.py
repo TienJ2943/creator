@@ -2,11 +2,12 @@ import os
 import shutil
 import uuid
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 import httpx
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -92,6 +93,12 @@ class VideoPromptRequest(BaseModel):
 
 class VideoPromptResponse(BaseModel):
     prompt: str
+
+
+class ExportRequest(BaseModel):
+    rows: List[TrendRow]
+    format: Literal["buffer", "full"]
+    gap_minutes: int = 90
 
 
 SAMPLE_VIDEOS = [
@@ -229,6 +236,24 @@ def generate_video_prompt(payload: VideoPromptRequest) -> VideoPromptResponse:
         keywords=payload.keywords,
     )
     return VideoPromptResponse(prompt=prompt)
+
+
+@app.post("/api/trends/export")
+def export_trend_rows(payload: ExportRequest) -> Response:
+    row_dicts = [row.model_dump() for row in payload.rows]
+
+    if payload.format == "buffer":
+        csv_bytes = trends.make_buffer_csv(row_dicts, gap_minutes=payload.gap_minutes)
+        filename = "buffer_bulk_upload.csv"
+    else:
+        csv_bytes = trends.make_full_export_csv(row_dicts)
+        filename = "posts_full_export.csv"
+
+    return Response(
+        content=csv_bytes,
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @app.post("/api/variations", response_model=VariationResponse)
