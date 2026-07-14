@@ -407,3 +407,213 @@ def search_threads_keyword(keyword: str, limit: int = 25) -> list[dict]:
     response.raise_for_status()
 
     return response.json().get("data", [])[:limit]
+
+
+def _finalize_row(
+    *,
+    platform: str,
+    trend: str,
+    post_id: str,
+    post_url_value: str,
+    raw_text: str,
+    likes: int,
+    comments: int,
+    retweets: int,
+    quotes: int,
+    engagement: int,
+    created_at: str,
+    keywords: list[str],
+    base_link: str,
+    campaign_name: str,
+    use_ai_rewrite: bool,
+    source: str,
+) -> dict:
+    hashtags = extract_hashtags(raw_text)
+    tracked_link = build_tracked_link(base_link, campaign_name, trend, source=source)
+
+    if use_ai_rewrite:
+        rewritten_caption = rewrite_caption_with_claude(raw_text, trend, keywords)
+    else:
+        rewritten_caption = template_rewrite(trend, keywords)
+
+    link_space = len(tracked_link) + 1
+    max_caption_len = 280 - link_space
+    caption = rewritten_caption
+    if len(caption) > max_caption_len:
+        caption = caption[: max_caption_len - 1].rstrip() + "…"
+    buffer_text = f"{caption} {tracked_link}"
+
+    tags = list(dict.fromkeys(keywords[:3] + [tag.lstrip("#") for tag in hashtags[:2]]))[:5]
+
+    return {
+        "platform": platform,
+        "trend": trend,
+        "post_id": post_id,
+        "post_url": post_url_value,
+        "original_text": raw_text,
+        "keywords": keywords,
+        "hashtags": hashtags,
+        "likes": likes,
+        "comments": comments,
+        "retweets": retweets,
+        "quotes": quotes,
+        "engagement_score": engagement,
+        "created_at": created_at,
+        "tracked_link": tracked_link,
+        "rewritten_caption": rewritten_caption,
+        "buffer_text": buffer_text,
+        "tags": tags,
+    }
+
+
+def build_x_rows(
+    trend: str,
+    base_link: str,
+    campaign_name: str,
+    posts_per_trend: int,
+    output_posts_per_trend: int,
+    use_ai_rewrite: bool,
+) -> list[dict]:
+    posts = search_recent_posts(trend, max_results=posts_per_trend)
+    if not posts:
+        return []
+
+    trend_keywords = extract_tfidf_keywords([post.get("text", "") for post in posts], top_n=8)
+
+    ranked_posts = sorted(posts, key=engagement_score, reverse=True)[:output_posts_per_trend]
+
+    rows = []
+    for post in ranked_posts:
+        raw_text = post.get("text", "")
+        metrics = post.get("public_metrics", {}) or {}
+        keywords = trend_keywords or extract_simple_keywords(raw_text)
+
+        rows.append(_finalize_row(
+            platform="X",
+            trend=trend,
+            post_id=post.get("id", ""),
+            post_url_value=post_url(post.get("id", "")),
+            raw_text=raw_text,
+            likes=metrics.get("like_count", 0),
+            comments=metrics.get("reply_count", 0),
+            retweets=metrics.get("retweet_count", 0),
+            quotes=metrics.get("quote_count", 0),
+            engagement=engagement_score(post),
+            created_at=post.get("created_at", ""),
+            keywords=keywords,
+            base_link=base_link,
+            campaign_name=campaign_name,
+            use_ai_rewrite=use_ai_rewrite,
+            source="twitter",
+        ))
+
+    return rows
+
+
+def build_meta_rows(
+    platform: str,
+    query: str,
+    base_link: str,
+    campaign_name: str,
+    posts_per_query: int,
+    output_posts_per_query: int,
+    use_ai_rewrite: bool,
+) -> list[dict]:
+    if platform == "Instagram":
+        raw_posts = search_instagram_hashtag(query, limit=posts_per_query)
+    elif platform == "Threads":
+        raw_posts = search_threads_keyword(query, limit=posts_per_query)
+    else:
+        raise ValueError(f"Unsupported platform for API search: {platform}")
+
+    if not raw_posts:
+        return []
+
+    normalized = []
+    for post in raw_posts:
+        text = post.get("caption") or post.get("text") or ""
+        normalized.append({
+            "id": post.get("id", ""),
+            "text": text,
+            "permalink": post.get("permalink", ""),
+            "like_count": post.get("like_count", 0),
+            "comments_count": post.get("comments_count", 0),
+            "timestamp": post.get("timestamp", ""),
+        })
+
+    query_keywords = extract_tfidf_keywords([post["text"] for post in normalized], top_n=8)
+
+    ranked_posts = sorted(
+        normalized,
+        key=lambda post: post["like_count"] + post["comments_count"] * 2,
+        reverse=True,
+    )[:output_posts_per_query]
+
+    rows = []
+    for post in ranked_posts:
+        raw_text = post["text"]
+        keywords = query_keywords or extract_simple_keywords(raw_text)
+
+        rows.append(_finalize_row(
+            platform=platform,
+            trend=query,
+            post_id=post["id"],
+            post_url_value=post["permalink"],
+            raw_text=raw_text,
+            likes=post["like_count"],
+            comments=post["comments_count"],
+            retweets=0,
+            quotes=0,
+            engagement=post["like_count"] + post["comments_count"] * 2,
+            created_at=post["timestamp"],
+            keywords=keywords,
+            base_link=base_link,
+            campaign_name=campaign_name,
+            use_ai_rewrite=use_ai_rewrite,
+            source=platform.lower(),
+        ))
+
+    return rows
+
+
+def build_manual_rows(
+    entries: list[dict],
+    base_link: str,
+    campaign_name: str,
+    use_ai_rewrite: bool,
+) -> list[dict]:
+    grouped_texts: dict[str, list[str]] = {}
+    for entry in entries:
+        grouped_texts.setdefault(entry["trend"], []).append(entry["text"])
+
+    trend_keywords_cache = {
+        trend: extract_tfidf_keywords(texts, top_n=8) for trend, texts in grouped_texts.items()
+    }
+
+    rows = []
+    for entry in entries:
+        trend = entry["trend"]
+        platform = entry["platform"]
+        raw_text = entry["text"]
+        keywords = trend_keywords_cache.get(trend) or extract_simple_keywords(raw_text)
+
+        rows.append(_finalize_row(
+            platform=platform,
+            trend=trend,
+            post_id="",
+            post_url_value="",
+            raw_text=raw_text,
+            likes=0,
+            comments=0,
+            retweets=0,
+            quotes=0,
+            engagement=0,
+            created_at="",
+            keywords=keywords,
+            base_link=base_link,
+            campaign_name=campaign_name,
+            use_ai_rewrite=use_ai_rewrite,
+            source=platform.lower(),
+        ))
+
+    return rows
