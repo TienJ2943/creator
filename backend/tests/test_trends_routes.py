@@ -55,3 +55,34 @@ def test_threads_search_returns_503_without_token(monkeypatch):
         "keyword": "ai", "base_link": "https://yourdomain.com/blog", "campaign_name": "trend_roundup",
     })
     assert response.status_code == 503
+
+
+def test_manual_paste_returns_rows():
+    sample_row = {
+        "platform": "X", "trend": "#AI", "post_id": "", "post_url": "",
+        "original_text": "AI tools everywhere", "keywords": ["ai"], "hashtags": [],
+        "likes": 0, "comments": 0, "retweets": 0, "quotes": 0, "engagement_score": 0,
+        "created_at": "", "tracked_link": "https://x.example?utm_source=x",
+        "rewritten_caption": "AI is booming.", "buffer_text": "AI is booming. https://x.example",
+        "tags": ["ai"],
+    }
+    with patch("app.main.trends.build_manual_rows", return_value=[sample_row]):
+        response = client.post("/api/trends/manual", json={
+            "base_link": "https://yourdomain.com/blog",
+            "campaign_name": "trend_roundup",
+            "use_ai_rewrite": True,
+            "entries": [{"trend": "#AI", "platform": "X", "text": "AI tools everywhere"}],
+        })
+    assert response.status_code == 200
+    assert response.json() == [sample_row]
+
+
+def test_manual_paste_returns_empty_list_for_no_entries():
+    response = client.post("/api/trends/manual", json={
+        "base_link": "https://yourdomain.com/blog",
+        "campaign_name": "trend_roundup",
+        "use_ai_rewrite": True,
+        "entries": [],
+    })
+    assert response.status_code == 200
+    assert response.json() == []

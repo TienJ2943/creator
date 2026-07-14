@@ -71,6 +71,19 @@ class TrendRow(BaseModel):
     tags: List[str]
 
 
+class ManualEntry(BaseModel):
+    trend: str
+    platform: str
+    text: str
+
+
+class ManualPasteRequest(BaseModel):
+    base_link: str
+    campaign_name: str
+    use_ai_rewrite: bool = True
+    entries: List[ManualEntry]
+
+
 SAMPLE_VIDEOS = [
     VideoAsset(
         id="launch-film",
@@ -182,6 +195,19 @@ def search_threads_trends(
         posts_per_query=max_results,
         output_posts_per_query=output_posts,
         use_ai_rewrite=use_ai_rewrite,
+    )
+
+
+@app.post("/api/trends/manual", response_model=List[TrendRow])
+def submit_manual_posts(payload: ManualPasteRequest) -> List[TrendRow]:
+    if not payload.entries:
+        return []
+
+    return trends.build_manual_rows(
+        entries=[entry.model_dump() for entry in payload.entries],
+        base_link=payload.base_link,
+        campaign_name=payload.campaign_name,
+        use_ai_rewrite=payload.use_ai_rewrite,
     )
 
 
