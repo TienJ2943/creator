@@ -161,3 +161,131 @@ def make_full_export_csv(rows: list[dict]) -> bytes:
     ])
 
     return full_df.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
+
+
+import os
+
+import requests
+
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+
+
+def template_rewrite(trend: str, keywords: list[str]) -> str:
+    clean_trend = trend.replace("#", "").strip()
+
+    if keywords:
+        theme = keywords[0].title()
+        keyword_line = ", ".join(keywords[:3])
+    else:
+        theme = clean_trend
+        keyword_line = clean_trend
+
+    hashtags = []
+
+    if trend.startswith("#"):
+        hashtags.append(trend)
+    else:
+        hashtags.append("#" + re.sub(r"\W+", "", clean_trend.title()))
+
+    for keyword in keywords[:2]:
+        tag = "#" + re.sub(r"\W+", "", keyword.title())
+        if len(tag) > 1:
+            hashtags.append(tag)
+
+    hashtags = list(dict.fromkeys(hashtags))[:2]
+
+    return (
+        f"{theme} is getting attention right now. "
+        f"Here are the key themes to watch: {keyword_line}. "
+        f"Read more "
+        + " ".join(hashtags)
+    )
+
+
+def template_video_prompt(trend: str, keywords: list[str]) -> str:
+    clean_trend = trend.replace("#", "").strip()
+    subject = keywords[0].title() if keywords else clean_trend
+    detail_line = ", ".join(keywords[1:4]) if len(keywords) > 1 else clean_trend
+
+    return (
+        f"Cinematic visual showcase of {subject.lower()} — {detail_line}, "
+        f"natural lighting, smooth camera motion, shallow depth of field."
+    )
+
+
+def rewrite_with_claude(prompt: str, fallback: str) -> str:
+    if not ANTHROPIC_API_KEY:
+        return fallback
+
+    try:
+        response = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": "claude-sonnet-5",
+                "max_tokens": 200,
+                "messages": [{"role": "user", "content": prompt}],
+            },
+            timeout=30,
+        )
+        response.raise_for_status()
+
+        content = response.json().get("content", [])
+        text_blocks = [
+            block.get("text", "")
+            for block in content
+            if block.get("type") == "text"
+        ]
+        rewritten = " ".join(text_blocks).strip()
+
+        return rewritten if rewritten else fallback
+    except Exception:
+        return fallback
+
+
+def rewrite_caption_with_claude(original_text: str, trend: str, keywords: list[str]) -> str:
+    fallback = template_rewrite(trend, keywords)
+    prompt = f"""
+Rewrite the following social post into Buffer-ready marketing copy.
+
+Rules:
+- Keep it punchy, professional, and useful.
+- Do not copy the original wording too closely.
+- Keep it under 240 characters before the link.
+- Use 1-2 relevant hashtags maximum.
+- Avoid clickbait and emoji spam.
+- Do not put quotation marks around the output.
+- End with a natural CTA like "Learn more" or "Read the full insight".
+
+Trend / topic:
+{trend}
+
+Original post:
+{original_text}
+
+Key themes:
+{", ".join(keywords)}
+"""
+    return rewrite_with_claude(prompt, fallback)
+
+
+def rewrite_video_prompt_with_claude(original_text: str, trend: str, keywords: list[str]) -> str:
+    fallback = template_video_prompt(trend, keywords)
+    prompt = f"""
+Turn the following trending topic into a short, concrete visual-direction
+prompt for AI video generation (not marketing copy).
+
+Rules:
+- Describe visual subject, mood, lighting, and motion - not hashtags or CTAs.
+- 1-3 sentences, concrete and filmable.
+- No quotation marks, no hashtags, no links.
+
+Trend/topic: {trend}
+Key themes: {", ".join(keywords)}
+Source post (for context only): {original_text}
+"""
+    return rewrite_with_claude(prompt, fallback)

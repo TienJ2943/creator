@@ -120,3 +120,46 @@ def test_make_full_export_csv_includes_all_row_fields():
     assert rows[0]["Platform"] == "X"
     assert rows[0]["Trend"] == "#AI"
     assert rows[0]["Likes"] == "10"
+
+
+import requests_mock
+
+from app.trends import rewrite_with_claude, template_rewrite, template_video_prompt
+
+
+def test_template_rewrite_includes_theme_and_hashtags():
+    text = template_rewrite("#SustainableFashion", ["eco-friendly", "recycled materials"])
+    assert "Eco-friendly" in text or "eco-friendly" in text.lower()
+    assert "#SustainableFashion" in text or "#Sustainablefashion".lower() in text.lower()
+
+
+def test_template_video_prompt_is_visual_not_marketing():
+    text = template_video_prompt("#SustainableFashion", ["eco-friendly", "recycled materials"])
+    assert "eco-friendly" in text.lower()
+    assert "read more" not in text.lower()
+    assert "#" not in text
+
+
+def test_rewrite_with_claude_returns_fallback_when_no_api_key(monkeypatch):
+    monkeypatch.setattr("app.trends.ANTHROPIC_API_KEY", None)
+    result = rewrite_with_claude("some prompt", fallback="fallback text")
+    assert result == "fallback text"
+
+
+def test_rewrite_with_claude_returns_model_text_on_success(monkeypatch):
+    monkeypatch.setattr("app.trends.ANTHROPIC_API_KEY", "test-key")
+    with requests_mock.Mocker() as mock:
+        mock.post(
+            "https://api.anthropic.com/v1/messages",
+            json={"content": [{"type": "text", "text": "Rewritten output"}]},
+        )
+        result = rewrite_with_claude("some prompt", fallback="fallback text")
+    assert result == "Rewritten output"
+
+
+def test_rewrite_with_claude_returns_fallback_on_http_error(monkeypatch):
+    monkeypatch.setattr("app.trends.ANTHROPIC_API_KEY", "test-key")
+    with requests_mock.Mocker() as mock:
+        mock.post("https://api.anthropic.com/v1/messages", status_code=500)
+        result = rewrite_with_claude("some prompt", fallback="fallback text")
+    assert result == "fallback text"
