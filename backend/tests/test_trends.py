@@ -163,3 +163,41 @@ def test_rewrite_with_claude_returns_fallback_on_http_error(monkeypatch):
         mock.post("https://api.anthropic.com/v1/messages", status_code=500)
         result = rewrite_with_claude("some prompt", fallback="fallback text")
     assert result == "fallback text"
+
+
+from app.trends import engagement_score, get_trending_topics, post_url, search_recent_posts
+
+
+def test_post_url_builds_x_status_link():
+    assert post_url("123") == "https://x.com/i/web/status/123"
+
+
+def test_engagement_score_weights_retweets_and_quotes_double():
+    post = {"public_metrics": {"like_count": 10, "reply_count": 2, "retweet_count": 3, "quote_count": 1}}
+    assert engagement_score(post) == 10 + 2 + 3 * 2 + 1 * 2
+
+
+def test_engagement_score_handles_missing_metrics():
+    assert engagement_score({}) == 0
+
+
+def test_get_trending_topics_parses_trend_names(monkeypatch):
+    monkeypatch.setattr("app.trends.X_BEARER_TOKEN", "test-token")
+    with requests_mock.Mocker() as mock:
+        mock.get(
+            "https://api.x.com/2/trends/by/woeid/1",
+            json={"data": [{"trend_name": "#AI"}, {"name": "#MarketingTips"}]},
+        )
+        topics = get_trending_topics(woeid="1", limit=10)
+    assert topics == ["#AI", "#MarketingTips"]
+
+
+def test_search_recent_posts_returns_data_list(monkeypatch):
+    monkeypatch.setattr("app.trends.X_BEARER_TOKEN", "test-token")
+    with requests_mock.Mocker() as mock:
+        mock.get(
+            "https://api.x.com/2/tweets/search/recent",
+            json={"data": [{"id": "1", "text": "hello"}]},
+        )
+        posts = search_recent_posts("#AI", max_results=10)
+    assert posts == [{"id": "1", "text": "hello"}]

@@ -289,3 +289,56 @@ Key themes: {", ".join(keywords)}
 Source post (for context only): {original_text}
 """
     return rewrite_with_claude(prompt, fallback)
+
+
+X_BEARER_TOKEN = os.getenv("X_BEARER_TOKEN")
+X_API_BASE = "https://api.x.com/2"
+
+
+def _x_headers() -> dict:
+    return {"Authorization": f"Bearer {X_BEARER_TOKEN}"}
+
+
+def get_trending_topics(woeid: str, limit: int = 10) -> list[str]:
+    url = f"{X_API_BASE}/trends/by/woeid/{woeid}"
+    response = requests.get(url, headers=_x_headers(), params={"max_trends": limit}, timeout=20)
+    response.raise_for_status()
+
+    data = response.json().get("data", [])
+
+    topics = []
+    for item in data:
+        topic = item.get("trend_name") or item.get("name")
+        if topic:
+            topics.append(topic)
+
+    return topics[:limit]
+
+
+def search_recent_posts(query: str, max_results: int = 25) -> list[dict]:
+    url = f"{X_API_BASE}/tweets/search/recent"
+    params = {
+        "query": f'"{query}" -is:retweet lang:en',
+        "max_results": max_results,
+        "sort_order": "recency",
+        "tweet.fields": "created_at,lang,public_metrics,entities",
+    }
+    response = requests.get(url, headers=_x_headers(), params=params, timeout=20)
+    response.raise_for_status()
+
+    return response.json().get("data", [])
+
+
+def engagement_score(post: dict) -> int:
+    metrics = post.get("public_metrics", {}) or {}
+
+    likes = metrics.get("like_count", 0)
+    replies = metrics.get("reply_count", 0)
+    retweets = metrics.get("retweet_count", 0)
+    quotes = metrics.get("quote_count", 0)
+
+    return likes + replies + retweets * 2 + quotes * 2
+
+
+def post_url(post_id: str) -> str:
+    return f"https://x.com/i/web/status/{post_id}"
