@@ -43,13 +43,28 @@ about into over after before more most less much many very than then
 """.split())
 
 
+def split_hashtag_words(tag: str) -> list[str]:
+    tag = tag.lstrip("#")
+    parts = re.findall(r"[A-Z]+(?=[A-Z][a-z])|[A-Z]?[a-z]+|[A-Z]+|\d+", tag)
+    return [part.lower() for part in parts if len(part) > 1]
+
+
+def extract_hashtag_keywords(text: str) -> list[str]:
+    words = []
+    for tag in extract_hashtags(text):
+        words.extend(split_hashtag_words(tag))
+    return [word for word in words if word not in STOPWORDS]
+
+
 def extract_simple_keywords(text: str, top_n: int = 5) -> list[str]:
-    text = clean_text(text)
-    text = text.translate(str.maketrans("", "", string.punctuation))
+    hashtag_words = extract_hashtag_keywords(text)
+
+    cleaned = clean_text(text)
+    cleaned = cleaned.translate(str.maketrans("", "", string.punctuation))
 
     words = [
         word.lower()
-        for word in text.split()
+        for word in cleaned.split()
         if word.lower() not in STOPWORDS and len(word) > 2
     ]
 
@@ -58,13 +73,21 @@ def extract_simple_keywords(text: str, top_n: int = 5) -> list[str]:
         counts[word] = counts.get(word, 0) + 1
 
     ranked = sorted(counts.items(), key=lambda item: item[1], reverse=True)
-    return [word for word, _count in ranked[:top_n]]
+    body_keywords = [word for word, _count in ranked]
+
+    # hashtags are an explicit signal of what the post is about, so they take priority
+    prioritized = list(dict.fromkeys(hashtag_words + body_keywords))
+    return prioritized[:top_n]
 
 
 def extract_tfidf_keywords(texts: list[str], top_n: int = 8) -> list[str]:
     cleaned_texts = []
+    hashtag_counts: dict[str, int] = {}
 
     for text in texts:
+        for word in extract_hashtag_keywords(text):
+            hashtag_counts[word] = hashtag_counts.get(word, 0) + 1
+
         cleaned = clean_text(text)
         if len(cleaned) > 20:
             cleaned_texts.append(cleaned)
@@ -94,7 +117,10 @@ def extract_tfidf_keywords(texts: list[str], top_n: int = 8) -> list[str]:
         if term and term not in STOPWORDS:
             keywords.append(term)
 
-    return keywords[:top_n]
+    # hashtags are an explicit signal of what the batch is about, so they take priority
+    hashtag_terms = sorted(hashtag_counts, key=hashtag_counts.get, reverse=True)
+    prioritized = list(dict.fromkeys(hashtag_terms + keywords))
+    return prioritized[:top_n]
 
 
 SYDNEY_TZ = ZoneInfo("Australia/Sydney")

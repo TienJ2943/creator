@@ -174,6 +174,7 @@ select {
   background: #f6c27d;
   color: #120f0a;
   font-weight: 700;
+  align-items: center;
 }
 
 .primary-btn:hover,
@@ -571,7 +572,12 @@ textarea {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 1rem;
   align-items: start;
+  align-content: start;
   margin-bottom: 2rem;
+}
+
+.trends-form .primary-btn {
+  align-self: end;
 }
 
 .trends-table {
