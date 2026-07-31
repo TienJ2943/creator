@@ -24,7 +24,9 @@ Artlist-inspired AI video generation site with a React frontend and FastAPI back
 ```bash
 cd backend
 python3 -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate 
+py -3.13 -m venv .venv #(for Windows)
+.\.venv\Scripts\Activate.ps1 #(for Windows)
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
